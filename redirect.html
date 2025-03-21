@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecionando...</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f5f7fb;
+            color: #333;
+        }
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #7749f8;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading">
+        <div class="spinner"></div>
+        <p>Redirecionando, por favor aguarde...</p>
+    </div>
+
+    <script>
+        // Obter ID do QR code da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const qrId = urlParams.get('id');
+        
+        // Função para obter URL de destino do localStorage
+        function getTargetUrl(qrId) {
+            try {
+                // Tentar obter dados do localStorage
+                const storageKey = 'qrMap';
+                const qrMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
+                return qrMap[qrId] || 'https://github.com'; // URL padrão caso não encontre
+            } catch (error) {
+                console.error('Erro ao obter URL:', error);
+                return 'https://github.com'; // URL padrão em caso de erro
+            }
+        }
+        
+        // Processar o redirecionamento
+        function processRedirect() {
+            if (!qrId) {
+                document.body.innerHTML = '<h1>QR Code inválido</h1><p>O QR code escaneado não é válido.</p>';
+                return;
+            }
+            
+            try {
+                // Obter URL de destino
+                const targetUrl = getTargetUrl(qrId);
+                
+                // Redirecionar para a URL de destino
+                window.location.href = targetUrl;
+            } catch (error) {
+                console.error('Erro ao redirecionar:', error);
+                document.body.innerHTML = `<h1>Erro</h1><p>Ocorreu um erro ao processar o QR code.</p>`;
+            }
+        }
+        
+        // Iniciar processamento
+        window.onload = processRedirect;
+    </script>
+</body>
+</html>

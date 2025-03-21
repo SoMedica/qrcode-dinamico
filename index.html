@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code Dinâmico</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <script src="https://unpkg.com/dexie@3.2.2/dist/dexie.js"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="logo">
+                <h2>QR Dinâmico</h2>
+            </div>
+            <nav>
+                <ul>
+                    <li class="active" data-view="dashboard-view"><a href="#">Dashboard</a></li>
+                    <li data-view="qrcodes-view"><a href="#">QR Codes</a></li>
+                    <li data-view="analytics-view"><a href="#">Analytics</a></li>
+                </ul>
+            </nav>
+        </div>
+
+        <div class="main-content">
+            <div class="header">
+                <h1>QR CODE DINÂMICO</h1>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboard-view" class="view active">
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <h3>Total de Scans</h3>
+                        <p id="total-scans">0</p>
+                    </div>
+                    <div class="metric-card">
+                        <h3>QR Codes Ativos</h3>
+                        <p id="active-qrcodes">0</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Desempenho Mensal</h3>
+                    <canvas id="performance-chart"></canvas>
+                </div>
+
+                <div class="qr-list-header">
+                    <h3>Seus QR Codes</h3>
+                    <button id="create-qr-btn" class="create-btn">Criar Novo QR Code</button>
+                </div>
+
+                <div id="qr-codes-list" class="qr-codes-container">
+                    <!-- QR codes will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- QR Codes View -->
+            <div id="qrcodes-view" class="view">
+                <div class="qr-list-header">
+                    <h3>Todos os QR Codes</h3>
+                    <button id="create-qr-btn-2" class="create-btn">Criar Novo QR Code</button>
+                </div>
+                <div id="all-qr-codes-list" class="qr-codes-container">
+                    <!-- All QR codes will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Analytics View -->
+            <div id="analytics-view" class="view">
+                <div class="metrics-container">
+                    <div class="metric-card">
+                        <h3>Total de Scans</h3>
+                        <p id="analytics-total-scans">0</p>
+                    </div>
+                    <div class="metric-card">
+                        <h3>QR Codes Ativos</h3>
+                        <p id="analytics-active-qrcodes">0</p>
+                    </div>
+                    <div class="metric-card">
+                        <h3>Média de Scans/QR</h3>
+                        <p id="analytics-avg-scans">0</p>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Desempenho Mensal</h3>
+                    <canvas id="analytics-chart"></canvas>
+                </div>
+
+                <div class="chart-container">
+                    <h3>Top 5 QR Codes</h3>
+                    <canvas id="top-qr-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Create QR View -->
+            <div id="create-view" class="view">
+                <div class="back-nav">
+                    <a href="#" id="back-to-dashboard">← Voltar para Dashboard</a>
+                </div>
+                <h2>Criar Novo QR Code</h2>
+                <div class="create-form">
+                    <div class="form-group">
+                        <label for="qr-name">Nome do QR Code:</label>
+                        <input type="text" id="qr-name" placeholder="Ex: Website Pessoal">
+                    </div>
+                    <div class="form-group">
+                        <label for="qr-url">URL:</label>
+                        <input type="url" id="qr-url" placeholder="https://example.com">
+                    </div>
+                    <button id="generate-qr-btn" class="create-btn">Gerar QR Code</button>
+                </div>
+                <div id="qr-preview" class="qr-preview">
+                    <h3>Preview:</h3>
+                    <div id="qr-container"></div>
+                    <p id="qr-url-display"></p>
+                </div>
+            </div>
+
+            <!-- Details View -->
+            <div id="details-view" class="view">
+                <div class="back-nav">
+                    <a href="#" id="back-from-details">← Voltar para Dashboard</a>
+                </div>
+                <div class="details-header">
+                    <h2 id="details-title">Detalhes do QR Code</h2>
+                    <div class="details-actions">
+                        <button id="edit-qr-btn" class="edit-btn">Editar</button>
+                        <button id="delete-qr-btn" class="delete-btn">Excluir</button>
+                    </div>
+                </div>
+
+                <div class="details-container">
+                    <div class="qr-details">
+                        <div id="details-qr-container" class="qr-image"></div>
+                        <div class="qr-info">
+                            <p id="details-created">Criado em: </p>
+                            <p id="details-url">URL: </p>
+                            <p id="details-scans">Total de scans: </p>
+                        </div>
+                    </div>
+
+                    <div class="performance-container">
+                        <h3>Histórico de Acessos</h3>
+                        <canvas id="details-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Edit Modal -->
+                <div id="edit-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close">&times;</span>
+                        <h3>Editar QR Code</h3>
+                        <div class="form-group">
+                            <label for="edit-name">Nome:</label>
+                            <input type="text" id="edit-name">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit-url">URL:</label>
+                            <input type="url" id="edit-url">
+                        </div>
+                        <button id="save-edit-btn" class="create-btn">Salvar Alterações</button>
+                    </div>
+                </div>
+
+                <!-- Delete Confirmation Modal -->
+                <div id="delete-modal" class="modal">
+                    <div class="modal-content">
+                        <span class="close-delete">&times;</span>
+                        <h3>Confirmar Exclusão</h3>
+                        <p>Tem certeza que deseja excluir este QR Code? Esta ação não pode ser desfeita.</p>
+                        <div class="modal-buttons">
+                            <button id="cancel-delete-btn" class="cancel-btn">Cancelar</button>
+                            <button id="confirm-delete-btn" class="delete-btn">Excluir</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botões para exportar e importar -->
+    <div class="export-import-container">
+        <button onclick="exportDatabase()" class="create-btn">Exportar Banco de Dados</button>
+        <input type="file" id="import-file" style="display: none;" onchange="importDatabase(event)">
+        <button onclick="document.getElementById('import-file').click()" class="create-btn" style="margin-top: 10px;">Importar Banco de Dados</button>
+    </div>
+
+    <!-- Modal para seleção de tamanho do QR Code -->
+    <div id="size-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-size">&times;</span>
+            <h3>Selecione o tamanho do QR Code</h3>
+            <div class="size-options">
+                <button class="size-btn" data-size="200">200px</button>
+                <button class="size-btn" data-size="300">300px</button>
+                <button class="size-btn" data-size="500">500px</button>
+                <button class="size-btn" data-size="800">800px</button>
+                <button class="size-btn" data-size="1000">1000px</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="database.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
