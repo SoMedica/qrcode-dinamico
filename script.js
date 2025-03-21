@@ -24,6 +24,15 @@ const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
 const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
 const navItems = document.querySelectorAll('nav li');
 
+// Elementos do Auth
+const authContainer = document.getElementById('auth-container');
+const loginView = document.getElementById('login-view');
+const registerView = document.getElementById('register-view');
+const loginBtn = document.getElementById('login-btn');
+const registerBtn = document.getElementById('register-btn');
+const gotoRegisterBtn = document.getElementById('goto-register');
+const gotoLoginBtn = document.getElementById('goto-login');
+
 // Estado atual
 let currentQRId = null;
 let lastActiveView = 'dashboard-view';
@@ -35,6 +44,89 @@ let topQrChart = null;
 // Variáveis globais para download
 let qrDownloadFilename = '';
 let qrDownloadId = '';
+
+// Funções de autenticação
+async function checkAuth() {
+    try {
+        const user = await Auth.getCurrentUser();
+        if (user) {
+            // Usuário já autenticado, esconder tela de login
+            authContainer.classList.add('hidden');
+            renderDashboard();
+        } else {
+            // Usuário não autenticado, mostrar tela de login
+            authContainer.classList.remove('hidden');
+            loginView.style.display = 'block';
+            registerView.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Erro ao verificar autenticação:', error);
+        alert('Ocorreu um erro ao verificar sua autenticação.');
+    }
+}
+
+// Event listeners de autenticação
+loginBtn.addEventListener('click', async () => {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    if (!email || !password) {
+        alert('Por favor, preencha todos os campos.');
+        return;
+    }
+    
+    try {
+        await Auth.login(email, password);
+        authContainer.classList.add('hidden');
+        renderDashboard();
+    } catch (error) {
+        console.error('Erro ao fazer login:', error);
+        alert('Erro ao fazer login. Verifique suas credenciais e tente novamente.');
+    }
+});
+
+registerBtn.addEventListener('click', async () => {
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
+    const confirmPassword = document.getElementById('register-password-confirm').value;
+    
+    if (!email || !password || !confirmPassword) {
+        alert('Por favor, preencha todos os campos.');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        alert('As senhas não correspondem.');
+        return;
+    }
+    
+    if (password.length < 6) {
+        alert('A senha deve ter pelo menos 6 caracteres.');
+        return;
+    }
+    
+    try {
+        await Auth.register(email, password);
+        alert('Registro bem-sucedido! Verifique seu e-mail para confirmar sua conta.');
+        loginView.style.display = 'block';
+        registerView.style.display = 'none';
+    } catch (error) {
+        console.error('Erro ao registrar:', error);
+        alert('Erro ao criar conta. Este e-mail já pode estar em uso.');
+    }
+});
+
+gotoRegisterBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    loginView.style.display = 'none';
+    registerView.style.display = 'block';
+});
+
+gotoLoginBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    registerView.style.display = 'none';
+    loginView.style.display = 'block';
+});
 
 // Funções de navegação
 function showView(viewId) {
@@ -129,15 +221,13 @@ generateQrBtn.addEventListener('click', async () => {
         id: Date.now().toString(),
         name: name,
         url: url,
-        createdAt: new Date().toISOString(),
+        created_at: new Date().toISOString(),
         scans: 0
     };
     
     try {
         // Adicionar ao banco de dados
         await QRCodeDB.addQRCode(newQR);
-        // Salvar mapeamento para redirecionamento
-        saveQrUrlMapping(newQR.id, newQR.url);
         
         // Mostrar o preview
         const qrPreview = document.getElementById('qr-preview');
@@ -152,7 +242,6 @@ generateQrBtn.addEventListener('click', async () => {
             : `${window.location.origin}${window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/'))}`;
         const redirectUrl = `${baseUrl}/redirect.html?id=${newQR.id}`;
         
-        // CORREÇÃO: Usar toDataURL em vez de toCanvas
         try {
             QRCode.toDataURL(redirectUrl, { width: 200 }, (error, url) => {
                 if (error) {
@@ -280,7 +369,7 @@ async function renderQRCodesToContainer(container, limit = null) {
         let qrCodes = await QRCodeDB.getAllQRCodes();
         
         // Ordenar por data de criação (mais recentes primeiro)
-        qrCodes.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        qrCodes.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
         
         // Aplicar limite se especificado
         if (limit && qrCodes.length > limit) {
@@ -434,7 +523,7 @@ async function showQRDetails(qrId) {
         
         // Preencher detalhes
         document.getElementById('details-title').textContent = qr.name;
-        document.getElementById('details-created').textContent = `Criado em: ${formatDate(qr.createdAt)}`;
+        document.getElementById('details-created').textContent = `Criado em: ${formatDate(qr.created_at)}`;
         document.getElementById('details-url').textContent = `URL: ${qr.url}`;
         document.getElementById('details-scans').textContent = `Total de scans: ${qr.scans}`;
         
@@ -542,9 +631,6 @@ saveEditBtn.addEventListener('click', async () => {
             url: newUrl
         });
         
-        // Atualizar o mapeamento de URL
-        saveQrUrlMapping(currentQRId, newUrl);
-        
         // Atualizar a view de detalhes
         showQRDetails(currentQRId);
         
@@ -572,9 +658,6 @@ cancelDeleteBtn.addEventListener('click', () => {
 confirmDeleteBtn.addEventListener('click', async () => {
     try {
         await QRCodeDB.deleteQRCode(currentQRId);
-        
-        // Remover do mapeamento de URLs
-        removeQrUrlMapping(currentQRId);
         
         deleteModal.style.display = 'none';
         alert('QR Code excluído com sucesso!');
@@ -791,37 +874,10 @@ function formatDate(dateStr) {
     return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Função para salvar o mapeamento de QRCode ID -> URL no localStorage
-function saveQrUrlMapping(id, url) {
-    try {
-        const storageKey = 'qrMap';
-        const qrMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        qrMap[id] = url;
-        localStorage.setItem(storageKey, JSON.stringify(qrMap));
-        console.log('URL mapping saved for QR Code:', id);
-    } catch (error) {
-        console.error('Error saving QR URL mapping:', error);
-    }
-}
-
-// Função para remover um QR Code do mapeamento
-function removeQrUrlMapping(id) {
-    try {
-        const storageKey = 'qrMap';
-        const qrMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
-        if (qrMap[id]) {
-            delete qrMap[id];
-            localStorage.setItem(storageKey, JSON.stringify(qrMap));
-            console.log('URL mapping removed for QR Code:', id);
-        }
-    } catch (error) {
-        console.error('Error removing QR URL mapping:', error);
-    }
-}
-
 // Inicializar aplicativo
 document.addEventListener('DOMContentLoaded', () => {
-    renderDashboard();
+    // Verificar autenticação
+    checkAuth();
     
     // Configurar o modal de tamanho
     const closeSizeBtn = document.querySelector('.close-size');
@@ -831,108 +887,3 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
-// Função para exportar os dados do banco para um arquivo JSON
-window.exportDatabase = async function() {
-    try {
-        const qrCodes = await QRCodeDB.getAllQRCodes();
-        const scanLogs = await db.scanLogs.toArray();
-        
-        const exportData = {
-            qrCodes: qrCodes,
-            scanLogs: scanLogs
-        };
-        
-        const dataStr = JSON.stringify(exportData, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        
-        const exportFileDefaultName = 'qrcode_database_backup.json';
-        
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileDefaultName);
-        linkElement.click();
-    } catch (error) {
-        console.error('Erro ao exportar banco de dados:', error);
-        alert('Ocorreu um erro ao exportar o banco de dados.');
-    }
-};
-
-// Função para importar dados de um arquivo JSON
-window.importDatabase = async function(event) {
-    try {
-        const file = event.target.files[0];
-        
-        if (!file) {
-            return;
-        }
-        
-        const reader = new FileReader();
-        
-        reader.onload = async function(e) {
-            try {
-                const data = JSON.parse(e.target.result);
-                
-                // Limpar banco de dados atual
-                await db.qrCodes.clear();
-                await db.scanLogs.clear();
-                
-                // Importar dados
-                if (data.qrCodes && data.qrCodes.length > 0) {
-                    await db.qrCodes.bulkAdd(data.qrCodes);
-                    
-                    // Atualizar também o mapeamento de URLs
-                    const qrMap = {};
-                    data.qrCodes.forEach(qr => {
-                        qrMap[qr.id] = qr.url;
-                    });
-                    localStorage.setItem('qrMap', JSON.stringify(qrMap));
-                }
-                
-                if (data.scanLogs && data.scanLogs.length > 0) {
-                    await db.scanLogs.bulkAdd(data.scanLogs);
-                }
-                
-                alert('Banco de dados importado com sucesso!');
-                renderDashboard();
-            } catch (error) {
-                console.error('Erro ao processar arquivo:', error);
-                alert('Ocorreu um erro ao processar o arquivo. Verifique se é um backup válido.');
-            }
-        };
-        
-        reader.readAsText(file);
-    } catch (error) {
-        console.error('Erro ao importar banco de dados:', error);
-        alert('Ocorreu um erro ao importar o banco de dados.');
-    }
-};
-// Função para exportar apenas os mapeamentos de URL para um arquivo JSON
-window.exportUrlMappings = async function() {
-    try {
-        // Obter todos os QR codes
-        const qrCodes = await QRCodeDB.getAllQRCodes();
-        
-        // Criar mapeamento
-        const urlMap = {};
-        qrCodes.forEach(qr => {
-            urlMap[qr.id] = qr.url;
-        });
-        
-        // Converter para JSON e criar link de download
-        const dataStr = JSON.stringify(urlMap, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        
-        const exportFileDefaultName = 'backup-urls.json';
-        
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileDefaultName);
-        linkElement.click();
-        
-        alert('Mapeamento de URLs exportado com sucesso! Faça upload deste arquivo para seu site.');
-    } catch (error) {
-        console.error('Erro ao exportar mapeamento de URLs:', error);
-        alert('Ocorreu um erro ao exportar o mapeamento de URLs.');
-    }
-};
