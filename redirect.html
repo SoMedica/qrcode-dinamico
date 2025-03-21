@@ -42,107 +42,96 @@
             color: #7749f8;
             margin-bottom: 10px;
         }
-        .error-container p {
-            margin-bottom: 20px;
-        }
-        .btn {
-            background-color: #7749f8;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            text-decoration: none;
-            font-weight: 500;
-        }
     </style>
-    <script src="https://unpkg.com/dexie@3.2.2/dist/dexie.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // Configuração do Supabase
+        const SUPABASE_URL = 'SUBSTITUA_PELA_SUA_URL';
+        const SUPABASE_ANON_KEY = 'SUBSTITUA_PELA_SUA_CHAVE';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        // Obter ID do QR code da URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const qrId = urlParams.get('id');
+        
+        // Função para obter informações sobre a fonte do scan
+        function getSourceInfo() {
+            const referrer = document.referrer;
+            if (referrer.includes('facebook') || referrer.includes('fb.com')) {
+                return 'facebook';
+            } else if (referrer.includes('instagram')) {
+                return 'instagram';
+            } else if (referrer.includes('linkedin')) {
+                return 'linkedin';
+            } else if (referrer.includes('twitter') || referrer.includes('t.co')) {
+                return 'twitter';
+            } else if (referrer.includes('mail') || referrer.includes('outlook') || referrer.includes('gmail')) {
+                return 'email';
+            } else {
+                return 'direct';
+            }
+        }
+        
+        // Processar o scan e redirecionar
+        async function processQRCodeScan() {
+            if (!qrId) {
+                showError('QR Code inválido', 'O código QR escaneado não contém um ID válido.');
+                return;
+            }
+            
+            try {
+                // Obter o QR code
+                const { data: qrCode, error: qrError } = await supabase
+                    .from('qr_codes')
+                    .select('*')
+                    .eq('id', qrId)
+                    .single();
+                
+                if (qrError || !qrCode) {
+                    showError('QR Code não encontrado', 'O código QR escaneado não existe ou foi removido.');
+                    return;
+                }
+                
+                // Registrar o scan
+                const scanLog = {
+                    qr_id: qrId,
+                    source: getSourceInfo(),
+                    user_agent: navigator.userAgent,
+                    ip_address: "127.0.0.1" // Simplificado
+                };
+                
+                // Adicionar registro no banco de dados
+                await supabase.from('scan_logs').insert([scanLog]);
+                
+                // Incrementar contador de scans
+                await supabase.rpc('increment_scan_count', { qr_id: qrId });
+                
+                // Redirecionar para a URL de destino
+                window.location.href = qrCode.url;
+            } catch (error) {
+                console.error('Erro ao processar scan:', error);
+                showError('Erro ao processar o código', 'Ocorreu um erro ao processar o código QR. Por favor, tente novamente.');
+            }
+        }
+        
+        // Função para exibir erro
+        function showError(title, message) {
+            document.body.innerHTML = `
+                <div class="error-container">
+                    <h1>${title}</h1>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+        
+        // Iniciar processamento
+        window.onload = processQRCodeScan;
+    </script>
 </head>
 <body>
     <div class="loading">
         <div class="spinner"></div>
         <p>Redirecionando, por favor aguarde...</p>
     </div>
-
-    <script>
-        // Obter ID do QR code da URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const qrId = urlParams.get('id');
-        
-        // Conectar ao banco de dados
-        const db = new Dexie('QRCodeDatabase');
-        db.version(1).stores({
-            qrCodes: 'id, name, url, createdAt, scans',
-            scanLogs: '++id, qrId, timestamp, source, userAgent, ipAddress'
-        });
-        
-        // Função para obter URL de destino
-        async function getTargetUrl(qrId) {
-            try {
-                // Tentar obter do localStorage primeiro (para compatibilidade)
-                const storageKey = 'qrMap';
-                const qrMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                if (qrMap[qrId]) {
-                    return qrMap[qrId];
-                }
-                
-                // Se não encontrar no localStorage, tentar no banco de dados
-                const qrCode = await db.qrCodes.get(qrId);
-                if (qrCode && qrCode.url) {
-                    return qrCode.url;
-                }
-                
-                // Se ainda não encontrou, buscar em URL alternativa usando fetch
-                // Este método é uma solução de fallback para obter a URL correta
-                try {
-                    const currentUrl = window.location.href;
-                    // Extrair o domínio base (para funcionar com GitHub Pages ou servidor local)
-                    const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
-                    
-                    // Tentar carregar o arquivo backup-urls.json
-                    const response = await fetch(`${baseUrl}/backup-urls.json?nocache=${Date.now()}`);
-                    if (response.ok) {
-                        const backupData = await response.json();
-                        if (backupData[qrId]) {
-                            return backupData[qrId];
-                        }
-                    }
-                } catch (fetchError) {
-                    console.error('Erro ao buscar URL de backup:', fetchError);
-                }
-                
-                // Se nada funcionar, mostrar erro
-                throw new Error('QR Code não encontrado');
-            } catch (error) {
-                throw error;
-            }
-        }
-        
-        // Processar o redirecionamento
-        async function processRedirect() {
-            try {
-                if (!qrId) {
-                    throw new Error('QR Code inválido');
-                }
-                
-                // Obter URL de destino
-                const targetUrl = await getTargetUrl(qrId);
-                
-                // Redirecionar para a URL de destino
-                window.location.href = targetUrl;
-            } catch (error) {
-                console.error('Erro ao redirecionar:', error);
-                document.body.innerHTML = `
-                    <div class="error-container">
-                        <h1>QR Code não encontrado</h1>
-                        <p>Este QR Code foi escaneado em um dispositivo diferente do que foi criado.</p>
-                        <p>Para fazer o QR Code funcionar corretamente em qualquer dispositivo, você precisa implementar um banco de dados externo como Firebase ou Supabase, ou usar o arquivo backup-urls.json.</p>
-                    </div>
-                `;
-            }
-        }
-        
-        // Iniciar processamento
-        processRedirect();
-    </script>
 </body>
 </html>
