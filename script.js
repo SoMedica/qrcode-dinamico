@@ -907,3 +907,32 @@ window.importDatabase = async function(event) {
         alert('Ocorreu um erro ao importar o banco de dados.');
     }
 };
+// Função para exportar apenas os mapeamentos de URL para um arquivo JSON
+window.exportUrlMappings = async function() {
+    try {
+        // Obter todos os QR codes
+        const qrCodes = await QRCodeDB.getAllQRCodes();
+        
+        // Criar mapeamento
+        const urlMap = {};
+        qrCodes.forEach(qr => {
+            urlMap[qr.id] = qr.url;
+        });
+        
+        // Converter para JSON e criar link de download
+        const dataStr = JSON.stringify(urlMap, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+        
+        const exportFileDefaultName = 'backup-urls.json';
+        
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        
+        alert('Mapeamento de URLs exportado com sucesso! Faça upload deste arquivo para seu site.');
+    } catch (error) {
+        console.error('Erro ao exportar mapeamento de URLs:', error);
+        alert('Ocorreu um erro ao exportar o mapeamento de URLs.');
+    }
+};
