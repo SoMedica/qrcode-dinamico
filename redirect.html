@@ -34,7 +34,28 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .error-container {
+            text-align: center;
+            max-width: 80%;
+        }
+        .error-container h1 {
+            color: #7749f8;
+            margin-bottom: 10px;
+        }
+        .error-container p {
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #7749f8;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+        }
     </style>
+    <script src="https://unpkg.com/dexie@3.2.2/dist/dexie.js"></script>
 </head>
 <body>
     <div class="loading">
@@ -47,40 +68,81 @@
         const urlParams = new URLSearchParams(window.location.search);
         const qrId = urlParams.get('id');
         
-        // Função para obter URL de destino do localStorage
-        function getTargetUrl(qrId) {
+        // Conectar ao banco de dados
+        const db = new Dexie('QRCodeDatabase');
+        db.version(1).stores({
+            qrCodes: 'id, name, url, createdAt, scans',
+            scanLogs: '++id, qrId, timestamp, source, userAgent, ipAddress'
+        });
+        
+        // Função para obter URL de destino
+        async function getTargetUrl(qrId) {
             try {
-                // Tentar obter dados do localStorage
+                // Tentar obter do localStorage primeiro (para compatibilidade)
                 const storageKey = 'qrMap';
                 const qrMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
-                return qrMap[qrId] || 'https://github.com'; // URL padrão caso não encontre
+                if (qrMap[qrId]) {
+                    return qrMap[qrId];
+                }
+                
+                // Se não encontrar no localStorage, tentar no banco de dados
+                const qrCode = await db.qrCodes.get(qrId);
+                if (qrCode && qrCode.url) {
+                    return qrCode.url;
+                }
+                
+                // Se ainda não encontrou, buscar em URL alternativa usando fetch
+                // Este método é uma solução de fallback para obter a URL correta
+                try {
+                    const currentUrl = window.location.href;
+                    // Extrair o domínio base (para funcionar com GitHub Pages ou servidor local)
+                    const baseUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+                    
+                    // Tentar carregar o arquivo backup-urls.json
+                    const response = await fetch(`${baseUrl}/backup-urls.json?nocache=${Date.now()}`);
+                    if (response.ok) {
+                        const backupData = await response.json();
+                        if (backupData[qrId]) {
+                            return backupData[qrId];
+                        }
+                    }
+                } catch (fetchError) {
+                    console.error('Erro ao buscar URL de backup:', fetchError);
+                }
+                
+                // Se nada funcionar, mostrar erro
+                throw new Error('QR Code não encontrado');
             } catch (error) {
-                console.error('Erro ao obter URL:', error);
-                return 'https://github.com'; // URL padrão em caso de erro
+                throw error;
             }
         }
         
         // Processar o redirecionamento
-        function processRedirect() {
-            if (!qrId) {
-                document.body.innerHTML = '<h1>QR Code inválido</h1><p>O QR code escaneado não é válido.</p>';
-                return;
-            }
-            
+        async function processRedirect() {
             try {
+                if (!qrId) {
+                    throw new Error('QR Code inválido');
+                }
+                
                 // Obter URL de destino
-                const targetUrl = getTargetUrl(qrId);
+                const targetUrl = await getTargetUrl(qrId);
                 
                 // Redirecionar para a URL de destino
                 window.location.href = targetUrl;
             } catch (error) {
                 console.error('Erro ao redirecionar:', error);
-                document.body.innerHTML = `<h1>Erro</h1><p>Ocorreu um erro ao processar o QR code.</p>`;
+                document.body.innerHTML = `
+                    <div class="error-container">
+                        <h1>QR Code não encontrado</h1>
+                        <p>Este QR Code foi escaneado em um dispositivo diferente do que foi criado.</p>
+                        <p>Para fazer o QR Code funcionar corretamente em qualquer dispositivo, você precisa implementar um banco de dados externo como Firebase ou Supabase, ou usar o arquivo backup-urls.json.</p>
+                    </div>
+                `;
             }
         }
         
         // Iniciar processamento
-        window.onload = processRedirect;
+        processRedirect();
     </script>
 </body>
 </html>
