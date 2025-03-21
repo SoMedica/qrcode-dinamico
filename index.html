@@ -223,19 +223,11 @@
         </div>
     </div>
 
-    <!-- Botões para exportar e importar -->
-    <div class="export-import-container">
-        <button onclick="exportDatabase()" class="create-btn">Exportar Banco de Dados</button>
-        <input type="file" id="import-file" style="display: none;" onchange="importDatabase(event)">
-        <button onclick="document.getElementById('import-file').click()" class="create-btn" style="margin-top: 10px;">Importar Banco de Dados</button>
-    </div>
-<div class="export-import-container">
-    <button onclick="exportDatabase()" class="create-btn">Exportar Banco de Dados</button>
-    <button onclick="exportUrlMappings()" class="create-btn" style="margin-top: 10px;">Exportar URLs para QR Codes</button>
-    <input type="file" id="import-file" style="display: none;" onchange="importDatabase(event)">
-    <button onclick="document.getElementById('import-file').click()" class="create-btn" style="margin-top: 10px;">Importar Banco de Dados</button>
+    <!-- Botão para logout -->
+<div class="user-action-container">
+    <button id="logout-btn" class="action-btn" onclick="Auth.logout().then(() => { window.location.reload(); })">Sair</button>
 </div>
-
+    
     <!-- Modal para seleção de tamanho do QR Code -->
     <div id="size-modal" class="modal">
         <div class="modal-content">
